@@ -89,7 +89,8 @@ jobs:
             pytest pytest-asyncio httpx
 
       - name: Run tests
-        run: pytest tests/ -v
+        run: |
+          pytest --maxfail=1 --disable-w
 
   # ── 3. DEPLOY (Render) ─────────────────────────────────────────────────────
   deploy:
