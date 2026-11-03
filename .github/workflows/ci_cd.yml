@@ -4,10 +4,7 @@
 #   Test   -> run pytest
 #   Deploy -> trigger Render deploy hook (main/master pushes only)
 #
-# One-time setup: GitHub repo -> Settings -> Secrets and variables -> Actions
-#   RENDER_DEPLOY_HOOK_URL = full deploy hook URL from Render
-#                            (Service -> Settings -> Deploy Hook)
-#   RENDER_APP_URL         = (optional) e.g. https://vmc-roads.onrender.com
+# 
 # ─────────────────────────────────────────────────────────────────────────────
 name: CI/CD
 
@@ -46,9 +43,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
 
-      # Only the web-app dependencies are installed. The heavy ML/GIS packages
-      # in requirements.txt (ultralytics/torch, osmnx, geopandas...) are used by
-      # the offline src/ pipeline and would add many minutes to every CI run.
+     
       - name: Install app dependencies
         run: |
           python -m pip install --upgrade pip
