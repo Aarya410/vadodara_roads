@@ -90,7 +90,7 @@ jobs:
 
       - name: Run tests
         run: |
-          pytest --maxfail=1 --disable-w
+          run: python -m pytest tests/ -v
 
   # ── 3. DEPLOY (Render) ─────────────────────────────────────────────────────
   deploy:
