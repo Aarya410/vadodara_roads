@@ -7,7 +7,7 @@
 # One-time setup: GitHub repo -> Settings -> Secrets and variables -> Actions
 #   RENDER_DEPLOY_HOOK_URL = full deploy hook URL from Render
 #                            (Service -> Settings -> Deploy Hook)
-#   RENDER_APP_URL         = (optional) e.g. https://vmc-roads.onrender.com
+#   RENDER_APP_URL         = (optional) e.g. https://vadodara-roads.onrender.com
 # ─────────────────────────────────────────────────────────────────────────────
 name: CI/CD
 
@@ -89,36 +89,11 @@ jobs:
             pytest pytest-asyncio httpx
 
       - name: Run tests
-        run: |
-          run: python -m pytest tests/ -v
+        run: python -m pytest tests/ -v
 
   # ── 3. DEPLOY (Render) ─────────────────────────────────────────────────────
   deploy:
     name: Deploy to Render
     runs-on: ubuntu-latest
     needs: [build, test]
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    environment: production
-    steps:
-      - name: Trigger Render deploy hook
-        env:
-          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
-        run: |
-          if [ -z "$HOOK" ]; then
-            echo "::error::Secret RENDER_DEPLOY_HOOK_URL is not set"; exit 1
-          fi
-          curl --fail --silent --show-error -X POST "$HOOK"
-          echo "Deploy triggered."
-
-      - name: Wait for /health (optional)
-        env:
-          APP_URL: ${{ secrets.RENDER_APP_URL }}
-        run: |
-          if [ -z "$APP_URL" ]; then echo "RENDER_APP_URL not set, skipping."; exit 0; fi
-          for i in $(seq 1 20); do
-            if curl --fail --silent "$APP_URL/health" >/dev/null; then
-              echo "Service is healthy."; exit 0
-            fi
-            echo "Waiting for service ($i/20)..."; sleep 15
-          done
-          echo "::warning::Health check did not pass in time (Render free tier can be slow)."
+    if:
