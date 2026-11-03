@@ -1,0 +1,12 @@
+names:
+- '0'
+nc: 1
+path: D:\DSML Project\vadodara_roads\vadodara_roads\data\raw\yolo_dataset
+roboflow:
+  license: CC BY 4.0
+  project: indiardd2022-8m1p5
+  url: https://app.roboflow.com/aaryas-workspace-j2kdd/indiardd2022-8m1p5/1
+  version: 1
+  workspace: aaryas-workspace-j2kdd
+train: train/images
+val: valid/images

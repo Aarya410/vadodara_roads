@@ -1,0 +1,123 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# VMC Road Management System — CI/CD pipeline
+#   Build  -> install deps, lint, verify app imports
+#   Test   -> run pytest
+#   Deploy -> trigger Render deploy hook (main/master pushes only)
+#
+# One-time setup: GitHub repo -> Settings -> Secrets and variables -> Actions
+#   RENDER_DEPLOY_HOOK_URL = full deploy hook URL from Render
+#                            (Service -> Settings -> Deploy Hook)
+#   RENDER_APP_URL         = (optional) e.g. https://vmc-roads.onrender.com
+# ─────────────────────────────────────────────────────────────────────────────
+name: CI/CD
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.11"
+  # Dummy values so the app can be imported in CI. No real DB is contacted.
+  MONGODB_URI: mongodb://localhost:27017
+  MONGODB_DB: vmc_roads_ci
+  SECRET_KEY: ci-only-secret-key
+  APP_ENV: test
+
+jobs:
+  # ── 1. BUILD ───────────────────────────────────────────────────────────────
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      # Only the web-app dependencies are installed. The heavy ML/GIS packages
+      # in requirements.txt (ultralytics/torch, osmnx, geopandas...) are used by
+      # the offline src/ pipeline and would add many minutes to every CI run.
+      - name: Install app dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install fastapi "uvicorn[standard]" motor pymongo \
+            "python-jose[cryptography]" "passlib[bcrypt]" python-multipart \
+            pydantic-settings "pydantic[email]" aiofiles pyyaml python-dotenv
+
+      - name: Lint (flake8)
+        run: |
+          pip install flake8
+          # Hard fail on syntax errors / undefined names
+          flake8 app --count --select=E9,F63,F7,F82 --show-source --statistics
+          # Style warnings only (never fail the build)
+          flake8 app --count --exit-zero --max-line-length=120 --statistics
+
+      - name: Verify the app imports and boots
+        run: python -c "from app.main import app; print('App OK:', app.title)"
+
+  # ── 2. TEST ────────────────────────────────────────────────────────────────
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install fastapi "uvicorn[standard]" motor pymongo \
+            "python-jose[cryptography]" "passlib[bcrypt]" python-multipart \
+            pydantic-settings "pydantic[email]" aiofiles pyyaml python-dotenv \
+            pytest pytest-asyncio httpx
+
+      - name: Run tests
+        run: pytest tests/ -v
+
+  # ── 3. DEPLOY (Render) ─────────────────────────────────────────────────────
+  deploy:
+    name: Deploy to Render
+    runs-on: ubuntu-latest
+    needs: [build, test]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    environment: production
+    steps:
+      - name: Trigger Render deploy hook
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::error::Secret RENDER_DEPLOY_HOOK_URL is not set"; exit 1
+          fi
+          curl --fail --silent --show-error -X POST "$HOOK"
+          echo "Deploy triggered."
+
+      - name: Wait for /health (optional)
+        env:
+          APP_URL: ${{ secrets.RENDER_APP_URL }}
+        run: |
+          if [ -z "$APP_URL" ]; then echo "RENDER_APP_URL not set, skipping."; exit 0; fi
+          for i in $(seq 1 20); do
+            if curl --fail --silent "$APP_URL/health" >/dev/null; then
+              echo "Service is healthy."; exit 0
+            fi
+            echo "Waiting for service ($i/20)..."; sleep 15
+          done
+          echo "::warning::Health check did not pass in time (Render free tier can be slow)."

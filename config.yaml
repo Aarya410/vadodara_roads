@@ -1,0 +1,42 @@
+# Vadodara AI Road Management - Phase 1/2 configuration
+bbox: {west: 73.05, south: 22.20, east: 73.30, north: 22.42}
+metric_crs: "EPSG:32643"     # UTM 43N, metres
+wgs84: "EPSG:4326"
+
+paths:
+  wards_dir: data/raw/wards            # put VMC ward shapefile / geojson here
+  yolo_data_yaml: data/raw/yolo_dataset/data.yaml
+  mapillary_dir: data/raw/mapillary
+  basemap: data/processed/basemap.gpkg
+  detections: data/processed/detections.gpkg
+  model_weights: models/pothole_best.pt
+  outputs: outputs
+
+detector:
+  base_model: yolov8n.pt
+  epochs: 60
+  imgsz: 640
+  conf: 0.30
+  pothole_class_names: ["0", "pothole", "D40"]   # your Roboflow export has a single class "0" (road damage, see README)
+
+mapillary:
+  token_env: MAPILLARY_TOKEN       # read from .env
+  tile_deg: 0.01
+  per_tile_limit: 6                # images per ~1 km tile; raise to 12 for the full run
+  max_images: 500                  # test run; raise to 3000 for the full run
+  bbox: {west: 73.11, south: 22.21, east: 73.27, north: 22.38}   # extent of the 12 wards
+
+hotspots:
+  eps_m: 75
+  min_samples: 3
+  snap_distance_m: 30
+
+# Slide-4 weights. Components with no data are skipped and the rest renormalised.
+weights:
+  pothole_density: 0.30
+  predicted_failure: 0.25     # needs failure labels (Phase 3) - disabled until available
+  traffic_importance: 0.20
+  waterlogging: 0.15          # needs DEM - deferred
+  complaints_proximity: 0.10  # proximity to schools/hospitals now; complaints later
+enabled_components: [pothole_density, traffic_importance, complaints_proximity]
+classes: {critical: 75, high: 50, medium: 25}
